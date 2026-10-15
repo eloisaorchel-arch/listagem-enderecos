@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Localizador de endereços · {{ cidade }} - {{ uf }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--ink:#0c2a21;--verde:#12985f;--verde2:#0b6b45;--ipe:#ffc72c;--mut:#667a72;--bg:#eef3f0;--card:#fff;--linha:#dfe8e3;--r:18px}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ink);background:var(--bg);overflow:hidden}
+h1,.n,.pin,.btn,.selo,#cont,.info b{font-family:'Bricolage Grotesque','Inter',system-ui,sans-serif}
+
+.app{display:grid;grid-template-columns:420px 1fr;height:100%}
+.painel{display:flex;flex-direction:column;min-height:0;background:var(--bg);position:relative;z-index:2;box-shadow:8px 0 30px rgba(12,42,33,.12)}
+
+.topo{position:relative;overflow:hidden;padding:26px 26px 22px;color:#fff;background:linear-gradient(135deg,#0c2a21 0%,#0b6b45 100%)}
+.blob{position:absolute;border-radius:50%;filter:blur(34px);opacity:.55;animation:flutua 9s ease-in-out infinite}
+.b1{width:180px;height:180px;background:var(--verde);right:-40px;top:-60px}
+.b2{width:140px;height:140px;background:var(--ipe);right:90px;bottom:-95px;opacity:.35;animation-delay:-4s}
+.topo>*:not(.blob){position:relative}
+.selo{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;padding:5px 11px;border-radius:99px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22)}
+h1{font-size:28px;line-height:1.05;margin:12px 0 8px;font-weight:800;letter-spacing:-.02em}
+.topo p{font-size:13.5px;line-height:1.5;color:#cfe5da;max-width:36ch}
+.topo p b{color:var(--ipe);font-weight:600}
+
+.entrada{padding:16px 20px 8px}
+textarea{width:100%;height:132px;resize:vertical;border:1.5px solid var(--linha);border-radius:14px;padding:12px 14px;font:14px/1.5 'Inter',system-ui,sans-serif;color:var(--ink);background:#fff;outline:none;transition:border-color .2s,box-shadow .2s}
+textarea:focus{border-color:var(--verde);box-shadow:0 0 0 4px rgba(18,152,95,.15)}
+.acoes{display:flex;gap:10px;margin-top:10px}
+.btn{position:relative;overflow:hidden;border:0;cursor:pointer;border-radius:12px;padding:11px 16px;font-size:14px;font-weight:800;transition:transform .15s,box-shadow .2s,background .2s}
+.btn:active{transform:scale(.97)}
+.btn.p{flex:1;color:#fff;background:linear-gradient(135deg,var(--verde),var(--verde2));box-shadow:0 8px 20px rgba(18,152,95,.35)}
+.btn.p::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.45),transparent);transform:skewX(-20deg);transition:left .6s}
+.btn.p:hover::after{left:130%}
+.btn.p:hover{box-shadow:0 10px 26px rgba(18,152,95,.45)}
+.btn.p.stop{background:linear-gradient(135deg,#c0392b,#962d22);box-shadow:0 8px 20px rgba(192,57,43,.3)}
+.btn.g{background:#fff;color:var(--ink);border:1.5px solid var(--linha)}
+.btn.g:hover{border-color:var(--verde);color:var(--verde2)}
+.dica{font-size:12px;line-height:1.45;color:var(--mut);margin:10px 2px 0}
+
+#lista{list-style:none;padding:10px 20px 20px;overflow-y:auto;flex:1;min-height:0;display:flex;flex-direction:column;gap:10px}
+.item{display:flex;gap:12px;padding:12px;border-radius:var(--r);background:var(--card);border:1.5px solid transparent;box-shadow:0 2px 10px rgba(12,42,33,.06);cursor:pointer;transition:transform .2s,box-shadow .2s,border-color .2s}
+.item.in{animation:entra .45s both;animation-delay:var(--d,0ms)}
+.item:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(12,42,33,.12)}
+.item.on{border-color:var(--verde);box-shadow:0 8px 24px rgba(18,152,95,.22)}
+.item.fila,.item.buscando{opacity:.65;cursor:default}
+.item.fila:hover,.item.buscando:hover,.item.none:hover{transform:none}
+.item.none{cursor:default;background:#fff7f5}
+.n{flex:none;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--verde);color:#fff;font-weight:800;font-size:13px;transition:background .25s}
+.item.on .n{background:var(--ipe);color:var(--ink)}
+.item.fila .n,.item.buscando .n{background:var(--mut)}
+.item.buscando .n{animation:pulsa 1s ease-in-out infinite}
+.item.none .n{background:#c0392b}
+.corpo{min-width:0;flex:1}
+.t{font-weight:600;font-size:14px;overflow-wrap:anywhere}
+.s{font-size:12.5px;line-height:1.45;color:var(--mut);margin-top:2px;overflow-wrap:anywhere}
+.nota{font-style:italic}
+.alts{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.alts button{border:1.5px solid var(--linha);background:#fff;color:var(--ink);border-radius:99px;padding:4px 10px;font:600 11.5px 'Inter',system-ui,sans-serif;cursor:pointer;transition:all .15s}
+.alts button:hover{border-color:var(--verde)}
+.alts button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.rodape{padding:10px 20px 14px;font-size:11.5px;color:var(--mut);border-top:1px solid var(--linha)}
+
+.mapa{position:relative;min-height:0}
+#map{position:absolute;inset:0}
+.leaflet-container{font-family:inherit;background:#e4ece6}
+.info{position:absolute;z-index:1100;top:16px;left:16px;max-width:min(380px,calc(100% - 90px));background:rgba(255,255,255,.93);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:16px;padding:14px 16px;box-shadow:0 10px 30px rgba(12,42,33,.2);font-size:13px;line-height:1.5;transition:opacity .3s,transform .3s}
+.info.hide{opacity:0;transform:translateY(-10px);pointer-events:none}
+.info b{display:block;font-size:15px;font-weight:800;margin-bottom:2px}
+.info a{color:var(--verde2);font-weight:600;text-decoration:none}
+.info a:hover{text-decoration:underline}
+.bar{position:absolute;z-index:1100;left:50%;bottom:22px;transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:8px 8px 11px;border-radius:99px;background:rgba(12,42,33,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 14px 34px rgba(12,42,33,.4);color:#fff;overflow:hidden;white-space:nowrap}
+.bar button{border:0;cursor:pointer;color:#fff;background:rgba(255,255,255,.1);border-radius:99px;padding:9px 15px;font:600 13px 'Inter',system-ui,sans-serif;transition:background .2s,transform .15s}
+.bar button:hover{background:rgba(255,255,255,.22)}
+.bar button:active{transform:scale(.95)}
+.bar button.seta{font-size:18px;line-height:1;padding:7px 14px}
+.bar button.go{background:var(--ipe);color:var(--ink)}
+.bar button.go:hover{background:#ffd75e}
+#cont{min-width:62px;text-align:center;font-size:14px;font-weight:800}
+.prog{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.12)}
+.prog i{display:block;height:100%;width:0;background:var(--ipe);transition:width .5s}
+.toast{position:absolute;z-index:1200;top:16px;left:50%;transform:translate(-50%,-90px);background:var(--ink);color:#fff;padding:11px 18px;border-radius:12px;font-size:13px;box-shadow:0 10px 26px rgba(0,0,0,.3);transition:transform .35s;max-width:90%;text-align:center}
+.toast.show{transform:translate(-50%,0)}
+
+.pin{position:relative;width:30px;height:30px;margin:2px;border-radius:50%;display:grid;place-items:center;background:var(--verde);color:#fff;font-weight:800;font-size:12px;border:2px solid #fff;box-shadow:0 4px 12px rgba(12,42,33,.35);transition:background .25s}
+.pin.cai{animation:cai .5s both}
+.pin.on{background:var(--ipe);color:var(--ink);transform:scale(1.35);animation:salto 1s ease 2}
+.pin.on::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid var(--ipe);animation:onda 1.6s ease-out infinite}
+
+@keyframes cai{from{opacity:0;transform:translateY(-26px)}}
+@keyframes salto{0%,100%{transform:scale(1.35)}50%{transform:scale(1.35) translateY(-14px)}}
+@keyframes onda{from{opacity:.9;transform:scale(.8)}to{opacity:0;transform:scale(1.8)}}
+@keyframes entra{from{opacity:0;transform:translateX(-18px)}}
+@keyframes flutua{50%{transform:translate(-20px,16px) scale(1.12)}}
+@keyframes pulsa{50%{opacity:.4}}
+
+@media (max-width:860px){
+  html,body{height:auto}
+  body{overflow:auto}
+  .app{grid-template-columns:1fr;height:auto}
+  .painel{box-shadow:none}
+  .topo{padding:20px 20px 18px}
+  h1{font-size:24px}
+  #lista{overflow:visible;flex:none}
+  .mapa{height:72vh}
+  .bar{bottom:14px;gap:4px}
+  .bar button{padding:8px 11px;font-size:12.5px}
+  .bar button.seta{padding:6px 12px}
+  #cont{min-width:52px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body data-cidade="{{ cidade }}">
+<div class="app">
+  <aside class="painel">
+    <header class="topo">
+      <div class="blob b1"></div><div class="blob b2"></div>
+      <span class="selo">{{ cidade }} · {{ uf }}</span>
+      <h1>Localizador de endereços</h1>
+      <p>Cole um endereço por linha: <b>rua, bairro</b> (o bairro pode estar incompleto). Se quiser, inclua o CEP.</p>
+    </header>
+    <section class="entrada">
+      <textarea id="txt" spellcheck="false" placeholder="Rua das Flores, 120, Jd Atlantico&#10;Av. Exemplo, Vl Aurora&#10;Rua Exemplo, Centro, 78700-000"></textarea>
+      <div class="acoes">
+        <button class="btn p" id="go">Localizar endereços</button>
+        <button class="btn g" id="limpar">Limpar</button>
+      </div>
+      <div class="dica">A busca é sempre feita dentro de {{ cidade }} - {{ uf }}. Até 60 endereços por vez, cerca de 1 por segundo. Ctrl+Enter também inicia.</div>
+    </section>
+    <ol id="lista"></ol>
+    <footer class="rodape">Mapa e buscas © colaboradores do OpenStreetMap (Nominatim). CEPs via ViaCEP, só quando você digita um.</footer>
+  </aside>
+  <main class="mapa">
+    <div id="map"></div>
+    <div class="info hide"></div>
+    <div class="bar">
+      <button id="prev" class="seta" title="Anterior (seta esquerda)">&#8249;</button>
+      <span id="cont">0 / 0</span>
+      <button id="next" class="seta" title="Próximo (seta direita)">&#8250;</button>
+      <button id="play" class="go">Percorrer</button>
+      <button id="all">Ver todos</button>
+      <div class="prog"><i></i></div>
+    </div>
+    <div class="toast" id="toast"></div>
+  </main>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const CIDADE = document.body.dataset.cidade;
+const MAX = 60;
+let itens = [], atual = -1, auto = null, buscando = false, cancelar = false;
+
+const map = L.map('map', {zoomControl: false}).setView([-16.4673, -54.6372], 13);
+L.control.zoom({position: 'topright'}).addTo(map);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
+}).addTo(map);
+
+const ESC = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'};
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ESC[c]);
+
+let tToast = null;
+function toast(m){
+  const t = $('#toast');
+  t.textContent = m;
+  t.classList.add('show');
+  clearTimeout(tToast);
+  tToast = setTimeout(() => t.classList.remove('show'), 4200);
+}
+
+const cand = it => it.candidatos[it.esc];
+const achados = () => itens.map((it, i) => it.candidatos.length ? i : -1).filter(i => i >= 0);
+
+function pino(i, ativo, novo){
+  return L.divIcon({
+    className: '',
+    html: '<div class="pin' + (ativo ? ' on' : '') + (novo ? ' cai' : '') + '">' + (i + 1) + '</div>',
+    iconSize: [34, 34],
+    iconAnchor: [17, 17]
+  });
+}
+
+function estilo(i){
+  const m = itens[i] && itens[i].m;
+  if (!m) return;
+  m.setIcon(pino(i, i === atual));
+  m.setZIndexOffset(i === atual ? 1000 : 0);
+}
+
+function marcar(i){
+  const it = itens[i];
+  if (!it.candidatos.length) return;
+  const c = cand(it);
+  if (!it.m){
+    it.m = L.marker([c.lat, c.lng], {icon: pino(i, false, true)}).addTo(map);
+    it.m.on('click', () => { parar(); ir(i); });
+  } else {
+    it.m.setLatLng([c.lat, c.lng]);
+    estilo(i);
+  }
+}
+
+function htmlItem(it, i, anim){
+  const c = it.candidatos[it.esc];
+  const cls = ['item'];
+  if (it.estado === 'fila') cls.push('fila');
+  else if (it.estado === 'buscando') cls.push('buscando');
+  else if (!c) cls.push('none');
+  if (i === atual) cls.push('on');
+  if (anim) cls.push('in');
+
+  const pend = it.estado === 'fila' || it.estado === 'buscando';
+  const titulo = pend ? esc(it.entrada) : esc(it.rua) + (it.bairro ? ', ' + esc(it.bairro) : '');
+  let sub;
+  if (it.estado === 'fila') sub = 'Na fila…';
+  else if (it.estado === 'buscando') sub = 'Buscando…';
+  else if (c) sub = esc(c.endereco);
+  else sub = esc(it.erro || ('Não encontrado em ' + CIDADE + '. Confira o nome da rua.'));
+
+  const nota = it.nota ? '<div class="s nota">' + esc(it.nota) + '</div>' : '';
+  let alts = '';
+  if (it.candidatos.length > 1){
+    alts = '<div class="alts">' + it.candidatos.map((x, k) =>
+      '<button data-i="' + i + '" data-k="' + k + '"' + (k === it.esc ? ' class="on"' : '') + '>' + esc(x.rotulo) + '</button>'
+    ).join('') + '</div>';
+  }
+  return '<li class="' + cls.join(' ') + '" data-i="' + i + '" style="--d:' + (Math.min(i, 12) * 40) + 'ms">' +
+    '<div class="n">' + (i + 1) + '</div>' +
+    '<div class="corpo"><div class="t">' + titulo + '</div><div class="s">' + sub + '</div>' + nota + alts + '</div></li>';
+}
+
+function renderLista(anim){
+  $('#lista').innerHTML = itens.map((it, i) => htmlItem(it, i, anim)).join('');
+}
+
+function atualizarItem(i){
+  const li = document.querySelector('#lista li[data-i="' + i + '"]');
+  if (li) li.outerHTML = htmlItem(itens[i], i, false);
+}
+
+function ir(i){
+  const it = itens[i];
+  if (!it || !it.candidatos.length) return;
+  const prev = atual;
+  atual = i;
+  if (prev >= 0 && prev !== i && itens[prev]) estilo(prev);
+  estilo(i);
+  const p = cand(it);
+  map.flyTo([p.lat, p.lng], 17, {duration: 1.4});
+
+  document.querySelectorAll('#lista li').forEach(l => l.classList.toggle('on', +l.dataset.i === i));
+  const li = document.querySelector('#lista li[data-i="' + i + '"]');
+  if (li) li.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+
+  const f = achados(), k = f.indexOf(i) + 1;
+  $('#cont').textContent = k + ' / ' + f.length;
+  $('.prog i').style.width = (k / f.length * 100) + '%';
+
+  const gm = 'https://www.google.com/maps/search/?api=1&amp;query=' + p.lat + ',' + p.lng;
+  const osm = 'https://www.openstreetmap.org/?mlat=' + p.lat + '&amp;mlon=' + p.lng + '#map=18/' + p.lat + '/' + p.lng;
+  const inf = $('.info');
+  inf.classList.remove('hide');
+  inf.innerHTML = '<b>' + (i + 1) + '. ' + esc(it.rua) + '</b><span>' + esc(p.endereco) + '</span><br>' +
+    '<a target="_blank" rel="noopener" href="' + gm + '">Abrir no Google Maps</a> &nbsp; ' +
+    '<a target="_blank" rel="noopener" href="' + osm + '">Abrir no OpenStreetMap</a>';
+}
+
+function passo(d){
+  const f = achados();
+  if (!f.length) return;
+  let k = f.indexOf(atual);
+  k = k < 0 ? (d > 0 ? 0 : f.length - 1) : (k + d + f.length) % f.length;
+  ir(f[k]);
+}
+
+function todos(){
+  const f = achados();
+  if (!f.length) return;
+  map.flyToBounds(L.latLngBounds(f.map(i => [cand(itens[i]).lat, cand(itens[i]).lng])),
+    {padding: [70, 70], maxZoom: 17, duration: 1.2});
+}
+
+function parar(){
+  clearInterval(auto);
+  auto = null;
+  $('#play').textContent = 'Percorrer';
+}
+
+function limparMapa(){
+  itens.forEach(it => it.m && it.m.remove());
+  itens = [];
+  atual = -1;
+  $('.info').classList.add('hide');
+  $('#cont').textContent = '0 / 0';
+  $('.prog i').style.width = '0';
+}
+
+async function consultar(linha){
+  const r = await fetch('/api/buscar', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({linha: linha})
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.erro || 'Falha no servidor. Veja o terminal do Flask.');
+  return d;
+}
+
+async function localizar(){
+  if (buscando){ cancelar = true; return; }
+  let linhas = $('#txt').value.split('\n').map(s => s.trim()).filter(Boolean);
+  if (!linhas.length) return toast('Cole ao menos um endereço.');
+  if (linhas.length > MAX){
+    linhas = linhas.slice(0, MAX);
+    toast('Usei só as primeiras ' + MAX + ' linhas.');
+  }
+  parar();
+  limparMapa();
+  itens = linhas.map(entrada => ({entrada: entrada, estado: 'fila', candidatos: [], esc: 0}));
+  renderLista(true);
+
+  buscando = true;
+  cancelar = false;
+  const b = $('#go');
+  b.classList.add('stop');
+  for (let i = 0; i < itens.length; i++){
+    if (cancelar) break;
+    b.textContent = 'Parar busca (' + (i + 1) + ' de ' + itens.length + ')';
+    itens[i].estado = 'buscando';
+    atualizarItem(i);
+    try {
+      const d = await consultar(linhas[i]);
+      itens[i] = Object.assign(d, {entrada: linhas[i], estado: 'ok', esc: 0});
+    } catch (e) {
+      itens[i] = {entrada: linhas[i], estado: 'ok', rua: linhas[i], bairro: '', candidatos: [], esc: 0, erro: e.message};
+    }
+    marcar(i);
+    atualizarItem(i);
+  }
+  for (let i = 0; i < itens.length; i++){
+    if (itens[i].estado !== 'ok'){
+      itens[i] = {entrada: linhas[i], estado: 'ok', rua: linhas[i], bairro: '', candidatos: [], esc: 0, erro: 'Busca interrompida.'};
+      atualizarItem(i);
+    }
+  }
+  buscando = false;
+  cancelar = false;
+  b.classList.remove('stop');
+  b.textContent = 'Localizar endereços';
+
+  const f = achados();
+  if (!f.length) return toast('Nenhum endereço encontrado.');
+  if (window.matchMedia('(max-width: 860px)').matches) $('.mapa').scrollIntoView({behavior: 'smooth'});
+  todos();
+  setTimeout(() => ir(f[0]), 1600);
+  if (f.length < itens.length) toast((itens.length - f.length) + ' endereço(s) não encontrado(s).');
+}
+
+$('#lista').addEventListener('click', e => {
+  const b = e.target.closest('button[data-k]');
+  if (b){
+    const i = +b.dataset.i;
+    itens[i].esc = +b.dataset.k;
+    marcar(i);
+    atualizarItem(i);
+    parar();
+    ir(i);
+    return;
+  }
+  const li = e.target.closest('li');
+  if (li){ parar(); ir(+li.dataset.i); }
+});
+
+$('#go').onclick = localizar;
+$('#limpar').onclick = () => {
+  if (buscando) return toast('Pare a busca antes de limpar.');
+  parar();
+  $('#txt').value = '';
+  limparMapa();
+  renderLista(false);
+  $('#txt').focus();
+};
+$('#prev').onclick = () => { parar(); passo(-1); };
+$('#next').onclick = () => { parar(); passo(1); };
+$('#all').onclick = () => { parar(); todos(); };
+$('#play').onclick = () => {
+  if (auto) return parar();
+  if (!achados().length) return toast('Nenhum endereço para percorrer.');
+  $('#play').textContent = 'Pausar';
+  passo(1);
+  auto = setInterval(() => passo(1), 4000);
+};
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'TEXTAREA'){
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) localizar();
+    return;
+  }
+  if (e.key === 'ArrowRight'){ parar(); passo(1); }
+  if (e.key === 'ArrowLeft'){ parar(); passo(-1); }
+});
+</script>
+</body>
+</html>
